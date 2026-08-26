@@ -21,12 +21,9 @@ SX1276 radio = new Module(
 
 #define PACKET_SIZE 64
 
-// =====================================================
 // Setup
-// =====================================================
-
-void setup() {
-
+void setup()
+{
   Serial.begin(115200);
   delay(2000);
 
@@ -35,21 +32,12 @@ void setup() {
   Serial.println("           FSK RX TEST");
   Serial.println("========================================");
 
-  // ===================================================
   // OLED
-  // ===================================================
-
   Wire.begin(OLED_SDA, OLED_SCL);
 
-  if (!display.begin(
-        SSD1306_SWITCHCAPVCC,
-        0x3C
-      )) {
-
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("[OLED] Not found");
-
   } else {
-
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
@@ -57,19 +45,21 @@ void setup() {
 
     display.println("FSK RX");
     display.println();
-    display.println("BR: 15.2 kbps");
-    display.println("DEV: 15.2 kHz");
-    display.println("915 MHz");
+    display.print("BR: ");
+    display.print(FSK_BITRATE, 1);
+    display.println("kbps");
+
+    display.print("DEV: ");
+    display.print(FSK_DEVIATION, 1);
+    display.println(" kHz");
+
+    display.println(FSK_FREQUENCY, 1);
     display.println();
     display.println("Initializing...");
-
     display.display();
   }
 
-  // ===================================================
   // FSK initialization
-  // ===================================================
-
   Serial.println("[RX] Initializing FSK...");
 
   int state = radio.beginFSK(
@@ -85,18 +75,14 @@ void setup() {
   Serial.println(state);
 
   if (state != RADIOLIB_ERR_NONE) {
-
     Serial.print("[RX] FSK initialization error: ");
     Serial.println(state);
 
     display.clearDisplay();
     display.setCursor(0, 0);
-
     display.println("FSK ERROR!");
-
     display.print("Code: ");
     display.println(state);
-
     display.display();
 
     while (true) {
@@ -104,25 +90,18 @@ void setup() {
     }
   }
 
-  // ===================================================
-  // Fixed packet length = 64 bytes
-  // ===================================================
-
+  // Fixed packet length = 64 bytes for FSK mode
   state = radio.fixedPacketLengthMode(PACKET_SIZE);
 
   Serial.print("[RX] fixedPacketLengthMode: ");
   Serial.println(state);
 
   if (state != RADIOLIB_ERR_NONE) {
-
     display.clearDisplay();
     display.setCursor(0, 0);
-
     display.println("PACKET ERROR!");
-
     display.print("Code: ");
     display.println(state);
-
     display.display();
 
     while (true) {
@@ -133,32 +112,32 @@ void setup() {
   Serial.println("[RX] FSK initialized successfully.");
   Serial.println("[RX] Waiting for packet...");
 
-  // ===================================================
   // OLED ready
-  // ===================================================
-
   display.clearDisplay();
   display.setCursor(0, 0);
 
   display.println("FSK RX READY");
   display.println();
 
-  display.println("BR: 15.2 kbps");
-  display.println("DEV: 15.2 kHz");
-  display.println("915 MHz");
+  display.print("BR: ");
+  display.print(FSK_BITRATE, 1);
+  display.println(" kbps");
+
+  display.print("DEV: ");
+  display.print(FSK_DEVIATION, 1);
+  display.println(" kHz");
+
+  display.print(FSK_FREQUENCY, 1);
+  display.println(" MHz");
 
   display.println();
   display.println("Waiting...");
-
   display.display();
 }
 
-// =====================================================
 // Loop
-// =====================================================
-
-void loop() {
-
+void loop()
+{
   uint8_t receivedData[PACKET_SIZE];
 
   Serial.println("[RX] Waiting...");
@@ -169,13 +148,9 @@ void loop() {
   );
 
   if (state == RADIOLIB_ERR_NONE) {
-
     Serial.println("[RX] RX OK");
 
-    // -----------------------------------------------
     // Show text
-    // -----------------------------------------------
-
     Serial.print("[RX] Received ");
     Serial.print(PACKET_SIZE);
     Serial.println(" bytes:");
@@ -187,29 +162,20 @@ void loop() {
     }
 
     Serial.println();
-
-    // -----------------------------------------------
     // OLED
-    // -----------------------------------------------
-
     display.clearDisplay();
     display.setCursor(0, 0);
 
     display.println("FSK RX OK");
     display.println("----------------");
 
-    // show first ~40 symbols
-    
     display.print("RX: ");
 
-    for (int i = 0; i < 40 && i < PACKET_SIZE; i++) {
+    for (int i = 0; i < 64 && i < PACKET_SIZE; i++) {
       display.print((char)receivedData[i]);
     }
 
     display.println();
-
-    display.println();
-
     display.print("Size: ");
     display.print(PACKET_SIZE);
     display.println(" B");
@@ -217,14 +183,10 @@ void loop() {
     display.print("RSSI: ");
     display.print(radio.getRSSI());
     display.println(" dBm");
-
     display.display();
 
-  }
-  else {
-
+  } else {
     if (state != RADIOLIB_ERR_RX_TIMEOUT) {
-
       Serial.print("[RX] Error: ");
       Serial.println(state);
 
@@ -235,7 +197,6 @@ void loop() {
 
       display.print("Code: ");
       display.println(state);
-
       display.display();
     }
   }

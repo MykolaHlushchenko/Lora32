@@ -19,21 +19,13 @@ Adafruit_SSD1306 display(
   OLED_RESET
 );
 
-// =====================================================
-// Payload
-// =====================================================
-
-// Рівно 64 ASCII-символи = 64 байти
+// 64 ASCII-symbols = 64 bytes
 const char* message =
    "Hello LoRa!!!! This is a 64-byte message for radio transmission.";
 
-
 const size_t PAYLOAD_SIZE = 64;
 
-// =====================================================
 // Setup
-// =====================================================
-
 void setup() {
 
   Serial.begin(115200);
@@ -44,21 +36,13 @@ void setup() {
   Serial.println("           FSK TX TEST");
   Serial.println("========================================");
 
-  // ===================================================
-  // OLED initialization
-  // ===================================================
 
+  // OLED initialization
   Wire.begin(OLED_SDA, OLED_SCL);
 
-  if (!display.begin(
-        SSD1306_SWITCHCAPVCC,
-        0x3C
-      )) {
-
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("[OLED] Not found");
-
   } else {
-
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
@@ -66,15 +50,15 @@ void setup() {
 
     display.println("FSK TX");
     display.println();
-    
+
     display.print("BR: ");
     display.print(FSK_BITRATE, 1);
     display.println("kbps");
 
     display.print("DEV: ");
     display.print(FSK_DEVIATION, 1);
-    display.println(" kHzz");
-    
+    display.println(" kHz");
+
     display.println("915 MHz");
     display.println();
     display.println("Initializing...");
@@ -82,10 +66,7 @@ void setup() {
     display.display();
   }
 
-  // ===================================================
   // Check payload size
-  // ===================================================
-
   size_t actualSize = strlen(message);
 
   Serial.print("[TX] Payload size: ");
@@ -93,22 +74,18 @@ void setup() {
   Serial.println(" bytes");
 
   if (actualSize != PAYLOAD_SIZE) {
-
     Serial.println();
     Serial.println("ERROR!");
     Serial.println("Payload must be exactly 64 bytes!");
 
     display.clearDisplay();
     display.setCursor(0, 0);
-
     display.println("PAYLOAD ERROR!");
     display.println();
 
     display.print("Size: ");
     display.println(actualSize);
-
     display.println("Expected: 64 B");
-
     display.display();
 
     while (true) {
@@ -116,10 +93,7 @@ void setup() {
     }
   }
 
-  // ===================================================
   // FSK initialization
-  // ===================================================
-
   Serial.println("[TX] Initializing FSK...");
 
   int state = radio.beginFSK(
@@ -132,15 +106,12 @@ void setup() {
   );
 
   if (state != RADIOLIB_ERR_NONE) {
-
     Serial.print("[TX] FSK initialization error: ");
     Serial.println(state);
 
     display.clearDisplay();
     display.setCursor(0, 0);
-
     display.println("FSK ERROR!");
-
     display.print("Code: ");
     display.println(state);
 
@@ -151,25 +122,18 @@ void setup() {
     }
   }
 
-  // ===================================================
-  // Fixed packet length = 64 bytes
-  // ===================================================
-
+  // Fixed packet length = 64 bytes for FSK mode
   state = radio.fixedPacketLengthMode(PAYLOAD_SIZE);
 
   if (state != RADIOLIB_ERR_NONE) {
-
     Serial.print("[TX] fixedPacketLengthMode error: ");
     Serial.println(state);
 
     display.clearDisplay();
     display.setCursor(0, 0);
-
     display.println("PACKET ERROR!");
-
     display.print("Code: ");
     display.println(state);
-
     display.display();
 
     while (true) {
@@ -182,50 +146,61 @@ void setup() {
   Serial.println();
   Serial.println("========================================");
   Serial.println("Configuration:");
-  Serial.println("Frequency : 915 MHz");
-  Serial.println("Bitrate   : 15.2 kbps");
-  Serial.println("Deviation : 15.2 kHz");
-  Serial.println("Bandwidth : 125 kHz");
+
+  Serial.println("Frequency: ");
+  Serial.println(FSK_FREQUENCY, 1);
+  Serial.println(" MHz");
+
+  Serial.println("Bitrate: ");
+  Serial.println(FSK_BITRATE, 1);
+  Serial.println(" kbps");
+
+  Serial.println("Deviation: ");
+  Serial.println(FSK_DEVIATION, 1);
+  Serial.println(" kHz");
+
+  Serial.println("Bandwidth:");
+  Serial.println(FSK_BANDWIDTH, 1);
+  Serial.println(" kHz");
+
   Serial.println("Payload   : 64 bytes");
   Serial.println("========================================");
   Serial.println();
 
-  // ===================================================
   // OLED ready screen
-  // ===================================================
-
   display.clearDisplay();
   display.setCursor(0, 0);
 
   display.println("FSK TX");
   display.println();
 
-  display.println("BR: 15.2 kbps");
-  display.println("DEV: 15.2 kHz");
-  display.println("Freq: 915 MHz");
+  display.print("BR: ");
+  display.print(FSK_BITRATE, 1);
+  display.println(" kbps");
+
+  display.print("DEV: ");
+  display.print(FSK_DEVIATION, 1);
+  display.println(" kHz");
+
+  display.println("Freq: ");
+  display.println(FSK_FREQUENCY, 1);
+  display.println(" MHz");
 
   display.println();
   display.println("Payload: 64 B");
-
   display.display();
 
   delay(2000);
 }
 
-// =====================================================
+
 // Loop
-// =====================================================
-
 void loop() {
-
   Serial.println();
   Serial.println("----------------------------------------");
   Serial.println("[TX] Sending 64-byte packet...");
 
-  // ===================================================
-  // Start measurement
-  // ===================================================
-
+  // Start measurement time
   unsigned long startTime = micros();
 
   int state = radio.transmit(
@@ -235,22 +210,13 @@ void loop() {
 
   unsigned long endTime = micros();
 
-  // ===================================================
   // Calculate transmission time
-  // ===================================================
+  unsigned long transmissionTime = endTime - startTime;
 
-  unsigned long transmissionTime =
-    endTime - startTime;
+  float transmissionTimeMs = transmissionTime / 1000.0;
 
-  float transmissionTimeMs =
-    transmissionTime / 1000.0;
-
-  // ===================================================
   // Result
-  // ===================================================
-
   if (state == RADIOLIB_ERR_NONE) {
-
     Serial.println("[TX] Transmission successful!");
 
     Serial.print("[TX] Payload: ");
@@ -266,29 +232,17 @@ void loop() {
     Serial.println(" kHz");
 
     Serial.print("[TX] Transmission time: ");
-    Serial.print(transmissionTime);
-    Serial.println(" us");
-
-    Serial.print("[TX] Transmission time: ");
     Serial.print(transmissionTimeMs, 3);
     Serial.println(" ms");
 
-    // =================================================
     // Effective bitrate
-    // =================================================
-
-    float effectiveBitrate =
-      (PAYLOAD_SIZE * 8.0) /
-      (transmissionTime / 1000000.0);
+    float effectiveBitrate = (PAYLOAD_SIZE * 8.0) / (transmissionTime / 1000000.0);
 
     Serial.print("[TX] Effective bitrate: ");
     Serial.print(effectiveBitrate, 2);
     Serial.println(" bit/s");
 
-    // =================================================
     // OLED
-    // =================================================
-
     display.clearDisplay();
     display.setCursor(0, 0);
 
@@ -311,7 +265,6 @@ void loop() {
     display.print("Time: ");
     display.print(transmissionTimeMs, 2);
     display.println(" ms");
-
     display.display();
 
   } else {
@@ -326,14 +279,10 @@ void loop() {
 
     display.print("Code: ");
     display.println(state);
-
     display.display();
   }
 
-  // ===================================================
   // Wait before next packet
-  // ===================================================
-
   Serial.println("[TX] Waiting 5 seconds...");
 
   delay(5000);

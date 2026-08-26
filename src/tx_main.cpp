@@ -19,22 +19,14 @@ Adafruit_SSD1306 display(
   OLED_RESET
 );
 
-// =====================================================
-// Test payload
-// =====================================================
-
-// Рівно 64 ASCII-символи = 64 байти
+// 64 ASCII - symbols = 64 bytes
 const char* message =
   "Hello LoRa!!!! This is a 64-byte message for radio transmission.";
 
 const size_t PAYLOAD_SIZE = 64;
 
-// =====================================================
 // Setup
-// =====================================================
-
 void setup() {
-
   Serial.begin(115200);
   delay(2000);
 
@@ -43,21 +35,12 @@ void setup() {
   Serial.println("          LoRa TX TEST");
   Serial.println("========================================");
 
-  // ===================================================
   // OLED initialization
-  // ===================================================
-
   Wire.begin(OLED_SDA, OLED_SCL);
 
-  if (!display.begin(
-        SSD1306_SWITCHCAPVCC,
-        0x3C
-      )) {
-
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("[OLED] Not found");
-
   } else {
-
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
@@ -65,19 +48,21 @@ void setup() {
 
     display.println("LoRa TX");
     display.println();
-    display.println("SF: 6");
-    display.println("BW: 125 kHz");
-    display.println("915 MHz");
+    display.print("SF: ");
+    display.println(LORA_SF);
+
+    display.print("BW: ");
+    display.print(LORA_BANDWIDTH, 1);
+    display.println(" kHz");
+
+    display.print(LORA_FREQUENCY, 1);
+    display.println(" MHz");
     display.println();
     display.println("Initializing...");
-
     display.display();
   }
 
-  // ===================================================
   // Check payload size
-  // ===================================================
-
   size_t actualSize = strlen(message);
 
   Serial.print("[TX] Payload size: ");
@@ -85,7 +70,6 @@ void setup() {
   Serial.println(" bytes");
 
   if (actualSize != PAYLOAD_SIZE) {
-
     Serial.println();
     Serial.println("ERROR!");
     Serial.println("Payload must be exactly 64 bytes!");
@@ -104,10 +88,7 @@ void setup() {
     }
   }
 
-  // ===================================================
   // LoRa initialization
-  // ===================================================
-
   Serial.println("[TX] Initializing LoRa...");
 
   int state = radio.begin(
@@ -120,7 +101,6 @@ void setup() {
   );
 
   if (state != RADIOLIB_ERR_NONE) {
-
     Serial.print("[TX] LoRa initialization error: ");
     Serial.println(state);
 
@@ -136,24 +116,31 @@ void setup() {
     }
   }
 
-  // SF6 → implicit header
+  // Implicit header used for LoRa mode
   state = radio.implicitHeader(64);
 
   if (state != RADIOLIB_ERR_NONE) {
     Serial.print("[TX] implicitHeader error: ");
     Serial.println(state);
     while (true);
-}
-
+  }
 
   Serial.println("[TX] LoRa initialized successfully.");
 
   Serial.println();
   Serial.println("========================================");
   Serial.println("Configuration:");
-  Serial.println("Frequency : 915 MHz");
-  Serial.println("Bandwidth : 125 kHz");
-  Serial.println("SF        : 6");
+  Serial.print("Frequency: ");
+  Serial.print(LORA_FREQUENCY, 1);
+  Serial.println(" MHz");
+
+  Serial.print("Bandwidth:");
+  Serial.print(LORA_BANDWIDTH, 1);
+  Serial.println(" kHz");
+
+  Serial.print("SF: ");
+  Serial.println(LORA_SF);
+
   Serial.println("CR        : 4/5");
   Serial.println("Payload   : 64 bytes");
   Serial.println("========================================");
@@ -165,54 +152,42 @@ void setup() {
   display.println("LoRa TX");
   display.println();
 
-  display.println("SF: 6");
-  display.println("BW: 125 kHz");
-  display.println("Freq: 915 MHz");
+  display.print("SF: ");
+  display.println(LORA_SF);
+
+  display.print("BW: ");
+  display.print(LORA_BANDWIDTH, 1);
+  display.println(" kHz");
+
+  display.print("Freq: ");
+  display.print(LORA_FREQUENCY, 1);
+  display.println(" MHz");
 
   display.println();
   display.println("Payload: 64 B");
-
   display.display();
 
   delay(2000);
 }
 
-// =====================================================
 // Loop
-// =====================================================
-
 void loop() {
-
   Serial.println();
   Serial.println("----------------------------------------");
   Serial.println("[TX] Sending 64-byte packet...");
 
-  // ===================================================
   // Start measurement
-  // ===================================================
-
   unsigned long startTime = micros();
-
   int state = radio.transmit(message);
-
   unsigned long endTime = micros();
 
-  // ===================================================
   // Calculate transmission time
-  // ===================================================
+  unsigned long transmissionTime = endTime - startTime;
+  float transmissionTimeMs = transmissionTime / 1000.0;
 
-  unsigned long transmissionTime =
-    endTime - startTime;
-
-  float transmissionTimeMs =
-    transmissionTime / 1000.0;
-
-  // ===================================================
   // Result
-  // ===================================================
-
   if (state == RADIOLIB_ERR_NONE) {
-
+     // Serial monitor
     Serial.println("[TX] Transmission successful!");
 
     Serial.print("[TX] Payload: ");
@@ -222,44 +197,35 @@ void loop() {
     Serial.print("[TX] SF: ");
     Serial.println(LORA_SF);
 
-    Serial.print("[TX] BW: ");
-    Serial.print(LORA_BANDWIDTH);
-    Serial.println(" kHz");
+    Serial.print("[TX] Frequency: ");
+    Serial.print(LORA_FREQUENCY, 1);
+    Serial.println(" MHz");
 
-    Serial.print("[TX] Transmission time: ");
-    Serial.print(transmissionTime);
-    Serial.println(" us");
+    Serial.print("[TX] BW: ");
+    Serial.print(LORA_BANDWIDTH, 1);
+    Serial.println(" kHz");
 
     Serial.print("[TX] Transmission time: ");
     Serial.print(transmissionTimeMs, 3);
     Serial.println(" ms");
 
-    // =================================================
     // Approximate bitrate
-    // =================================================
-
-    float bitrate =
-      (PAYLOAD_SIZE * 8.0) /
-      (transmissionTime / 1000000.0);
+    float bitrate = (PAYLOAD_SIZE * 8.0) / (transmissionTime / 1000000.0);
 
     Serial.print("[TX] Effective bitrate: ");
     Serial.print(bitrate, 2);
     Serial.println(" bit/s");
 
-    // =================================================
     // OLED
-    // =================================================
-
     display.clearDisplay();
     display.setCursor(0, 0);
-
     display.println("LoRa TX");
 
     display.print("SF: ");
     display.println(LORA_SF);
 
     display.print("BW: ");
-    display.print(LORA_BANDWIDTH, 0);
+    display.print(LORA_BANDWIDTH, 1);
     display.println(" kHz");
 
     display.print("Size: ");
@@ -267,33 +233,23 @@ void loop() {
     display.println(" B");
 
     display.println();
-
     display.print("Time: ");
     display.print(transmissionTimeMs, 2);
     display.println(" ms.");
-
     display.display();
-
   } else {
-
     Serial.print("[TX] Transmission error: ");
     Serial.println(state);
 
     display.clearDisplay();
     display.setCursor(0, 0);
-
     display.println("TX ERROR!");
     display.print("Code: ");
     display.println(state);
-
     display.display();
   }
 
-  // ===================================================
   // Wait before next packet
-  // ===================================================
-
   Serial.println("[TX] Waiting 5 seconds...");
-
   delay(5000);
 }
