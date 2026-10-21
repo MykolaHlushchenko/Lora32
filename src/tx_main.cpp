@@ -63,7 +63,8 @@ void handleTXCommand(const String& command) {
                 cfg.bandwidth,
                 cfg.spreadingFactor,
                 cfg.codingRate,
-                cfg.syncWord
+                cfg.syncWord,
+                cfg.txPower
             );
 
             if (state == RADIOLIB_ERR_NONE) {
@@ -90,7 +91,7 @@ void handleTXCommand(const String& command) {
         int separator = args.indexOf(' ');
 
         if (separator < 0) {
-            Serial.println("Usage: set <freq|bw|sf|cr|sync> <value>");
+            Serial.println("Usage: set <freq|bw|sf|cr|sync|power> <value>");
             return;
         }
 
@@ -104,6 +105,8 @@ void handleTXCommand(const String& command) {
             key = "frequency";
         } else if (key.equalsIgnoreCase("bw")) {
             key = "bandwidth";
+        } else if (key.equalsIgnoreCase("power")) {
+            key = "tx_power";
         } else {
             key.toLowerCase();
         }
@@ -122,7 +125,8 @@ void handleTXCommand(const String& command) {
             cfg.bandwidth,
             cfg.spreadingFactor,
             cfg.codingRate,
-            cfg.syncWord
+            cfg.syncWord,
+            cfg.txPower
         );
 
         if (state == RADIOLIB_ERR_NONE) {

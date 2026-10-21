@@ -16,6 +16,7 @@ void Config::setDefaults() {
     data.spreadingFactor = LORA_SF;
     data.codingRate = LORA_CR;
     data.syncWord = LORA_SYNC_WORD;
+    data.txPower = LORA_POWER;
 }
 
 // Begin
@@ -50,12 +51,14 @@ bool Config::begin() {
     data.spreadingFactor = prefs.getUChar("sf", data.spreadingFactor);
     data.codingRate = prefs.getUChar("cr", data.codingRate);
     data.syncWord = prefs.getUChar("sync", data.syncWord);
+    data.txPower = prefs.getChar("power", data.txPower);
 
     // Validate data
     if (!isfinite(data.frequency) || data.frequency < 137.0f || data.frequency > 1020.0f ||
         !isfinite(data.bandwidth) || data.bandwidth < 7.8f || data.bandwidth > 500.0f ||
         data.spreadingFactor < 6 || data.spreadingFactor > 12 ||
-        data.codingRate < 5 || data.codingRate > 8) {
+        data.codingRate < 5 || data.codingRate > 8 ||
+        data.txPower < 2 || data.txPower > 20) {
 
         Serial.println("[Config] Data not correct, reset to default...");
         setDefaults();
@@ -111,6 +114,7 @@ bool Config::save() {
     ok &= prefs.putUChar("sf", data.spreadingFactor) > 0;
     ok &= prefs.putUChar("cr", data.codingRate) > 0;
     ok &= prefs.putUChar("sync", data.syncWord) > 0;
+    ok &= prefs.putChar("power", data.txPower) > 0;
 
     if (ok) {
         ok = prefs.putUChar("cfg_version", CURRENT_VERSION) > 0;
@@ -164,6 +168,10 @@ bool Config::set(const char* key, const char* value) {
         if (number < 0 || number > 255 || floorf(number) != number)
             return false;
         data.syncWord = static_cast<uint8_t>(number);
+    } else if (strcmp(key, "tx_power") == 0 || strcmp(key, "power") == 0) {
+        if (number < 2 || number > 20 || floorf(number) != number)
+            return false;
+        data.txPower = static_cast<int8_t>(number);
     } else {
         return false;
     }
@@ -185,4 +193,5 @@ void Config::print() const {
     Serial.printf("sf: %u\n", data.spreadingFactor);
     Serial.printf("cr: 4/%u\n", data.codingRate);
     Serial.printf("sync: 0x%02X\n", data.syncWord);
+    Serial.printf("tx_power: %d dBm\n", data.txPower);
 }

@@ -54,7 +54,8 @@ void runDevicePOST(SX1276& radio, Adafruit_SSD1306& display) {
         cfg.bandwidth,
         cfg.spreadingFactor,
         cfg.codingRate,
-        cfg.syncWord
+        cfg.syncWord,
+        cfg.txPower
     );
 
     if (loraState == RADIOLIB_ERR_NONE) {

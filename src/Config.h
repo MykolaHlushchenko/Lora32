@@ -9,6 +9,7 @@ struct DeviceConfig {
     uint8_t spreadingFactor;
     uint8_t codingRate;
     uint8_t syncWord;
+    int8_t txPower;
 };
 
 class Config {
@@ -23,7 +24,7 @@ public:
         return data;
     }
 
-    static constexpr uint8_t CURRENT_VERSION = 1;
+    static constexpr uint8_t CURRENT_VERSION = 2;
 
 private:
     DeviceConfig data;
