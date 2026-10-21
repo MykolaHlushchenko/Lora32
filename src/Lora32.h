@@ -26,7 +26,7 @@
 // =====================================================
 
 #define LORA_FREQUENCY 915.0
-#define LORA_BANDWIDTH 500.0
+#define LORA_BANDWIDTH 125.0
 #define LORA_SF        6
 #define LORA_CR        5
 #define LORA_SYNC_WORD 0x12

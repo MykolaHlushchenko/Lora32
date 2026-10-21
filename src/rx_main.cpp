@@ -4,6 +4,11 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Lora32.h>
+#include "Logger.h"
+#include "Version.h"
+#include "Config.h"
+#include "Post.h"
+#include "SerialCommands.h"
 
 Adafruit_SSD1306 display(
   SCREEN_WIDTH,
@@ -19,16 +24,42 @@ SX1276 radio = new Module(
   RADIO_BUSY
 );
 
+SerialCommands serialCommands;
+
+// Handle RX Command
+void handleRXCommand(const String& command) {
+    if (command.equalsIgnoreCase("version")) {
+        printVersion();
+
+    } else if (command.equalsIgnoreCase("log")) {
+        logger.dump();
+
+    } else if (command.equalsIgnoreCase("clear_logs")) {
+        logger.clear();
+        Serial.println("[LOG] Buffer cleared.");
+
+    } else if (command.equalsIgnoreCase("config_show")) {
+        config.print();
+
+    } else if (command.equalsIgnoreCase("self_test")) {
+        printPostStatus();
+
+    } else {
+        Serial.printf("Unknown RX command: %s\n", command.c_str());
+    }
+}
+
 // Setup
 void setup() {
   Serial.begin(115200);
   delay(2000);
 
-  // Initialisation I2C for OLED
-  Wire.begin(OLED_SDA, OLED_SCL);
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // 0x3C
-    Serial.println(F("OLED not found"));
-  }
+  serialCommands.begin(handleRXCommand);
+
+  // Self post diagnostic full system
+  runDevicePOST(radio, display);
+
+  logger.log(LogLevel::INFO_LEVEL, "Setup Log RX");
 
   display.clearDisplay();
   display.setTextSize(1);
@@ -36,33 +67,14 @@ void setup() {
   display.setCursor(0,0);
   display.println("LoRa RX");
   display.display();
-
-  Serial.println(F("[RX] Initialisation..."));
-  int state = radio.begin(LORA_FREQUENCY, LORA_BANDWIDTH, LORA_SF, LORA_CR);
-
-  if (state == RADIOLIB_ERR_NONE) {
-    Serial.println(F("[RX] Redy!"));
-    display.println("Waiting...");
-    display.display();
-  } else {
-    display.println("Radio Error!");
-    display.display();
-    while (true);
-  }
-
-  // Implicit header used for LoRa mode
-  state = radio.implicitHeader(64);
-
-  if (state != RADIOLIB_ERR_NONE) {
-    Serial.print("[RX] implicitHeader error: ");
-    Serial.println(state);
-    while (true);
-  }
 }
 
 // Loop
 void loop() {
   String receivedData;
+
+  serialCommands.update();
+
   int state = radio.receive(receivedData);
 
   if (state == RADIOLIB_ERR_NONE) {
@@ -87,14 +99,7 @@ void loop() {
     display.print(snr, 1);
     display.println(" dB");
     display.display();
-    //delay(2000);
-
-    // Show in Serial Monitor
-    Serial.print(F("[RX] resived: "));
-    Serial.println(receivedData);
    } else if (state == RADIOLIB_ERR_RX_TIMEOUT) {
-    Serial.println("[RX] NO SIGNAL / TIMEOUT");
-
     display.clearDisplay();
     display.setCursor(0, 0);
     display.println("RX: NO SIGNAL");

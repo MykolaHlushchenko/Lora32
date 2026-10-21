@@ -4,6 +4,11 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Lora32.h>
+#include "Logger.h"
+#include "Version.h"
+#include "Config.h"
+#include "Post.h"
+#include "SerialCommands.h"
 
 SX1276 radio = new Module(
   RADIO_NSS,
@@ -19,48 +24,140 @@ Adafruit_SSD1306 display(
   OLED_RESET
 );
 
+
 // 64 ASCII - symbols = 64 bytes
 const char* message =
   "Hello LoRa!!!! This is a 64-byte message for radio transmission.";
 
 const size_t PAYLOAD_SIZE = 64;
 
+unsigned long lastTxTime = 0;
+const unsigned long TX_INTERVAL = 5000;
+
+SerialCommands serialCommands;
+
+// Handle TX Command
+void handleTXCommand(const String& command) {
+    if (command.equalsIgnoreCase("version")) {
+        printVersion();
+
+    } else if (command.equalsIgnoreCase("log")) {
+        logger.dump();
+
+    } else if (command.equalsIgnoreCase("clear_logs")) {
+        logger.clear();
+        Serial.println("[LOG] Buffer cleared.");
+
+    } else if (command.equalsIgnoreCase("config_show")) {
+        config.print();
+
+    } else if (command.equalsIgnoreCase("config_reset")) {
+        if (config.reset()) {
+            Serial.println("[CFG] Config reset to defaults.");
+
+            // Apply default configuration
+            const DeviceConfig& cfg = config.get();
+
+            int state = radio.begin(
+                cfg.frequency,
+                cfg.bandwidth,
+                cfg.spreadingFactor,
+                cfg.codingRate,
+                cfg.syncWord
+            );
+
+            if (state == RADIOLIB_ERR_NONE) {
+                state = radio.implicitHeader(PAYLOAD_SIZE);
+            }
+
+            if (state == RADIOLIB_ERR_NONE) {
+                Serial.println("[RADIO] Re-initialized successfully.");
+            } else {
+                Serial.printf("[RADIO] Initialization failed: %d\n", state);
+            }
+        } else {
+            Serial.println("[CFG] Failed to reset configuration.");
+        }
+
+    } else if (command.equalsIgnoreCase("self_test")) {
+        printPostStatus();
+
+    } else if (command.startsWith("set ")) {
+        // Format: set <parameter> <value>
+        String args = command.substring(4);
+        args.trim();
+
+        int separator = args.indexOf(' ');
+
+        if (separator < 0) {
+            Serial.println("Usage: set <freq|bw|sf|cr|sync> <value>");
+            return;
+        }
+
+        String key = args.substring(0, separator);
+        String value = args.substring(separator + 1);
+
+        key.trim();
+        value.trim();
+
+        if (key.equalsIgnoreCase("freq")) {
+            key = "frequency";
+        } else if (key.equalsIgnoreCase("bw")) {
+            key = "bandwidth";
+        } else {
+            key.toLowerCase();
+        }
+
+        if (!config.set(key.c_str(), value.c_str())) {
+            Serial.printf("[CFG] Invalid value or save failed: %s = %s\n", key.c_str(), value.c_str());
+            return;
+        }
+
+        Serial.printf("[CFG] Saved: %s = %s\n", key.c_str(), value.c_str());
+
+        const DeviceConfig& cfg = config.get();
+
+        int state = radio.begin(
+            cfg.frequency,
+            cfg.bandwidth,
+            cfg.spreadingFactor,
+            cfg.codingRate,
+            cfg.syncWord
+        );
+
+        if (state == RADIOLIB_ERR_NONE) {
+            state = radio.implicitHeader(PAYLOAD_SIZE);
+        }
+
+        if (state == RADIOLIB_ERR_NONE) {
+            logger.log(INFO_LEVEL, "LoRa re-initialized successfully!");
+            Serial.println("[RADIO] Re-initialized successfully.");
+        } else {
+            logger.log(ERROR_LEVEL, "LoRa re-init failed with code: %d", state);
+            Serial.printf("[RADIO] Re-initialization failed: %d\n", state);
+        }
+
+    } else {
+        Serial.printf("Unknown TX command: %s\n", command.c_str());
+    }
+}
+
 // Setup
 void setup() {
   Serial.begin(115200);
   delay(2000);
+  serialCommands.begin(handleTXCommand);
+
+  // Self post diagnostic full system
+  runDevicePOST(radio, display);
+
+  lastTxTime = millis();
+  logger.log(LogLevel::INFO_LEVEL, "Setup Log TX");
 
   Serial.println();
-  Serial.println("========================================");
-  Serial.println("          LoRa TX TEST");
-  Serial.println("========================================");
-
-  // OLED initialization
-  Wire.begin(OLED_SDA, OLED_SCL);
-
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("[OLED] Not found");
-  } else {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-
-    display.println("LoRa TX");
-    display.println();
-    display.print("SF: ");
-    display.println(LORA_SF);
-
-    display.print("BW: ");
-    display.print(LORA_BANDWIDTH, 1);
-    display.println(" kHz");
-
-    display.print(LORA_FREQUENCY, 1);
-    display.println(" MHz");
-    display.println();
-    display.println("Initializing...");
-    display.display();
-  }
+  Serial.println("========== CONFIG ==========");
+  config.print();
+  Serial.println("============================");
 
   // Check payload size
   size_t actualSize = strlen(message);
@@ -90,40 +187,7 @@ void setup() {
 
   // LoRa initialization
   Serial.println("[TX] Initializing LoRa...");
-
-  int state = radio.begin(
-    LORA_FREQUENCY,
-    LORA_BANDWIDTH,
-    LORA_SF,
-    LORA_CR,
-    LORA_SYNC_WORD,
-    LORA_POWER
-  );
-
-  if (state != RADIOLIB_ERR_NONE) {
-    Serial.print("[TX] LoRa initialization error: ");
-    Serial.println(state);
-
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println("LoRa ERROR!");
-    display.print("Code: ");
-    display.println(state);
-    display.display();
-
-    while (true) {
-      delay(1000);
-    }
-  }
-
-  // Implicit header used for LoRa mode
-  state = radio.implicitHeader(64);
-
-  if (state != RADIOLIB_ERR_NONE) {
-    Serial.print("[TX] implicitHeader error: ");
-    Serial.println(state);
-    while (true);
-  }
+  const DeviceConfig& cfg = config.get();
 
   Serial.println("[TX] LoRa initialized successfully.");
 
@@ -172,84 +236,45 @@ void setup() {
 
 // Loop
 void loop() {
-  Serial.println();
-  Serial.println("----------------------------------------");
-  Serial.println("[TX] Sending 64-byte packet...");
+  serialCommands.update();
 
-  // Start measurement
-  unsigned long startTime = micros();
-  int state = radio.transmit(message);
-  unsigned long endTime = micros();
+  if (millis() - lastTxTime >= TX_INTERVAL) {
+    lastTxTime = millis();
 
-  // Calculate transmission time
-  unsigned long transmissionTime = endTime - startTime;
-  float transmissionTimeMs = transmissionTime / 1000.0;
+    const DeviceConfig& cfg = config.get();
 
-  // Result
-  if (state == RADIOLIB_ERR_NONE) {
-     // Serial monitor
-    Serial.println("[TX] Transmission successful!");
+    // Start measurement
+    unsigned long startTime = micros();
+    int state = radio.transmit(message);
+    unsigned long endTime = micros();
 
-    Serial.print("[TX] Payload: ");
-    Serial.print(PAYLOAD_SIZE);
-    Serial.println(" bytes");
+    // Calculate transmission time
+    unsigned long transmissionTime = endTime - startTime;
+    float transmissionTimeMs = transmissionTime / 1000.0;
 
-    Serial.print("[TX] SF: ");
-    Serial.println(LORA_SF);
+    // Result
+    if (state == RADIOLIB_ERR_NONE) {
+      // Approximate bitrate
+      float bitrate = (PAYLOAD_SIZE * 8.0) / (transmissionTime / 1000000.0);
 
-    Serial.print("[TX] Frequency: ");
-    Serial.print(LORA_FREQUENCY, 1);
-    Serial.println(" MHz");
+      //logger.log(LogLevel::INFO_LEVEL, "TX Success! Time: %.2f ms, Bitrate: %.2f b/s", transmissionTimeMs, bitrate);
 
-    Serial.print("[TX] BW: ");
-    Serial.print(LORA_BANDWIDTH, 1);
-    Serial.println(" kHz");
+      // OLED
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.printf("\nLoRa TX | %.1f MHz\n", cfg.frequency);
+      display.printf("\nSF: %u | BW: %.0f\n", cfg.spreadingFactor, cfg.bandwidth);
+      display.printf("Time: %.1f ms\n", transmissionTimeMs);
+      display.display();
 
-    Serial.print("[TX] Transmission time: ");
-    Serial.print(transmissionTimeMs, 3);
-    Serial.println(" ms");
+    } else {
+      logger.log(LogLevel::ERROR_LEVEL, "Transmission error code: %d", state);
 
-    // Approximate bitrate
-    float bitrate = (PAYLOAD_SIZE * 8.0) / (transmissionTime / 1000000.0);
-
-    Serial.print("[TX] Effective bitrate: ");
-    Serial.print(bitrate, 2);
-    Serial.println(" bit/s");
-
-    // OLED
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println("LoRa TX");
-
-    display.print("SF: ");
-    display.println(LORA_SF);
-
-    display.print("BW: ");
-    display.print(LORA_BANDWIDTH, 1);
-    display.println(" kHz");
-
-    display.print("Size: ");
-    display.print(PAYLOAD_SIZE);
-    display.println(" B");
-
-    display.println();
-    display.print("Time: ");
-    display.print(transmissionTimeMs, 2);
-    display.println(" ms.");
-    display.display();
-  } else {
-    Serial.print("[TX] Transmission error: ");
-    Serial.println(state);
-
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.println("TX ERROR!");
-    display.print("Code: ");
-    display.println(state);
-    display.display();
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.println("TX ERROR!");
+      display.printf("\nCode: %d\n", state);
+      display.display();
+    }
   }
-
-  // Wait before next packet
-  Serial.println("[TX] Waiting 5 seconds...");
-  delay(5000);
 }
